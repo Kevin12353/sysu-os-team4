@@ -265,7 +265,7 @@ wake_threads (struct thread *t, void *aux)
 {
   if(t->status == THREAD_BLOCKED)
   {
-    if(t->sleeping_ticks == 0)
+    if(t->sleeping_ticks <= 0)
     {
       thread_unblock (t);
     }
