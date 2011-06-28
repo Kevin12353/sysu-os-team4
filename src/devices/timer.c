@@ -30,6 +30,9 @@ static void busy_wait (int64_t loops);
 static void real_time_sleep (int64_t num, int32_t denom);
 static void real_time_delay (int64_t num, int32_t denom);
 
+/* Modified for Project 1 */
+static void wake_threads (struct thread *t, void *aux);
+
 /* Sets up the timer to interrupt TIMER_FREQ times per second,
    and registers the corresponding interrupt. */
 void
@@ -92,8 +95,18 @@ timer_sleep (int64_t ticks)
   int64_t start = timer_ticks ();
 
   ASSERT (intr_get_level () == INTR_ON);
-  while (timer_elapsed (start) < ticks) 
-    thread_yield ();
+
+  /* Modified for Project 1 */
+  /*while (timer_elapsed (start) < ticks) 
+    thread_yield ();*/
+  struct thread *cur = thread_current ();
+  if(ticks>0)
+    cur->sleeping_ticks = ticks-1;
+  else
+    cur->sleeping_ticks = 0;
+  enum intr_level old_intr_level = intr_disable ();
+  thread_block ();
+  intr_set_level (old_intr_level);
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
@@ -172,6 +185,8 @@ timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
   thread_tick ();
+  /* Modified for Project 1 */
+  thread_foreach(wake_threads, 0);
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer
@@ -243,4 +258,20 @@ real_time_delay (int64_t num, int32_t denom)
      the possibility of overflow. */
   ASSERT (denom % 1000 == 0);
   busy_wait (loops_per_tick * num / 1000 * TIMER_FREQ / (denom / 1000)); 
+}
+// Modified for Project 1
+static void
+wake_threads (struct thread *t, void *aux)
+{
+  if(t->status == THREAD_BLOCKED)
+  {
+    if(t->sleeping_ticks == 0)
+    {
+      thread_unblock (t);
+    }
+    else if(t->sleeping_ticks > 0)
+    {
+      --(t->sleeping_ticks);
+    }
+  }
 }
