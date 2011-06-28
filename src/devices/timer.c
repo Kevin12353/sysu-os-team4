@@ -100,10 +100,7 @@ timer_sleep (int64_t ticks)
   /*while (timer_elapsed (start) < ticks) 
     thread_yield ();*/
   struct thread *cur = thread_current ();
-  if(ticks>0)
-    cur->sleeping_ticks = ticks-1;
-  else
-    cur->sleeping_ticks = 0;
+  cur->sleeping_ticks = ticks-1;
   enum intr_level old_intr_level = intr_disable ();
   thread_block ();
   intr_set_level (old_intr_level);
