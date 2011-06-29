@@ -1,20 +1,20 @@
 #include <stdio.h>
 #include "fixed-point.h"
 
-fp 
+int64_t 
 INT2FLOAT(int n)
 {
-  return n*PARA ;
+  return n * PARA ;
 }
 
 int 
-FLOAT2INTZ(fp x)
+FLOAT2INTZ(int64_t x)
 {
   return x / PARA;
 }
 
 int 
-FLOAT2INTN(fp x)
+FLOAT2INTN(int64_t x)
 {
   if (x > 0)  
     return (x + PARA / 2) / PARA;
@@ -22,50 +22,50 @@ FLOAT2INTN(fp x)
     return (x - PARA / 2) / PARA;
 }
 
-fp 
-FADDF(fp x,fp y)
+int64_t 
+FADDF(int64_t x,int64_t y)
 { 
-  return x+y;
+  return x + y;
 }
 
-fp 
-FSUBF(fp x,fp y)
+int64_t 
+FSUBF(int64_t x,int64_t y)
 {
-  return x-y;
+  return x - y;
 }
 
-fp 
-FADDI(fp x,int n)
+int64_t 
+FADDI(int64_t x,int n)
 {
   return x + n * PARA;
 }
 
-fp 
-FSUBI(fp x,int n)
+int64_t 
+FSUBI(int64_t x,int n)
 {
   return x - n * PARA;
 }
   
-fp 
-FMULF(fp x,fp y)
+int64_t 
+FMULF(int64_t x,int64_t y)
 {
   return ((int64_t) x) * y / PARA;
 }
 
-fp 
-FMULI(fp x,int n)
+int64_t 
+FMULI(int64_t x,int n)
 {
   return x * n;
 }
 
-fp 
-FDIVF(fp x,fp y)
+int64_t 
+FDIVF(int64_t x,int64_t y)
 {
   return ((int64_t) x) * PARA / y ;
 }
   
-fp 
-FDIVI(fp x,int n)
+int64_t 
+FDIVI(int64_t x,int n)
 {
   return x / n;
 }

@@ -82,7 +82,7 @@ static void donothing( void );
 /*my function--------c
 */
 
-//Modified for Project 1
+//ousiri
 static bool list_less(struct list_elem *a, struct list_elem *b, void *aux);
 static void thread_update_priority(struct thread *t);
 static void thread_update_load_avg(void);
@@ -737,6 +737,8 @@ printf( "OK %d", list_size( &ready_list ) );
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
 
+/* ousiri */
+// a compare function between 2 item in the list base on the priority
 static bool
 list_less(struct list_elem *a, struct list_elem *b, void *aux){
   struct thread *t1, *t2;
@@ -745,6 +747,7 @@ list_less(struct list_elem *a, struct list_elem *b, void *aux){
   return (t1->priority) > (t2->priority);
 }
 
+// update the priority of the thread
 static void
 thread_update_priority(struct thread *t){
   int new_pri = PRI_MAX - FLOAT2INTN(FDIVI(t->recent_cpu, 4))-(t->nice*2);
@@ -757,18 +760,22 @@ thread_update_priority(struct thread *t){
   }
 }
 
+//update the load avg of the system
 static void
 thread_update_load_avg(void){
   load_avg = FADDF(FMULF(FDIVI(INT2FLOAT(59), 60), load_avg), FMULI(FDIVI(INT2FLOAT(1), 60), count_ready_threads()));
 }
 
+//update the recent cpu of the thread
 static void
 thread_update_recent_cpu(struct thread *t){
   t->recent_cpu = FADDI(FMULF(FDIVF(FMULI(load_avg, 2), FADDI(FMULI(load_avg, 2), 1)), t->recent_cpu), t->nice);
 }
 
+//count the ready threads including the running thread
 static int
 count_ready_threads(void){
   int count = list_size(&ready_list);
   return (thread_current()==idle_thread)?count:count+1;
 }
+/* finish */

@@ -30,7 +30,7 @@ static void busy_wait (int64_t loops);
 static void real_time_sleep (int64_t num, int32_t denom);
 static void real_time_delay (int64_t num, int32_t denom);
 
-/* Modified for Project 1 */
+/* ousiri */
 static void wake_threads (struct thread *t, void *aux);
 
 /* Sets up the timer to interrupt TIMER_FREQ times per second,
@@ -94,7 +94,7 @@ timer_sleep (int64_t ticks)
 {
   ASSERT (intr_get_level () == INTR_ON);
 
-  /* Modified for Project 1 */
+  /* ousiri */
   if(ticks>0)
   {
     struct thread *cur = thread_current ();
@@ -181,7 +181,7 @@ timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
   
-  /* Modified for Project 1 */
+  /* ousiri */
   enum intr_level old_intr_level = intr_disable();
   thread_foreach(wake_threads, 0);
   intr_set_level (old_intr_level);
@@ -258,7 +258,7 @@ real_time_delay (int64_t num, int32_t denom)
   ASSERT (denom % 1000 == 0);
   busy_wait (loops_per_tick * num / 1000 * TIMER_FREQ / (denom / 1000)); 
 }
-// Modified for Project 1
+// ousiri
 static void
 wake_threads (struct thread *t, void *aux)
 {
