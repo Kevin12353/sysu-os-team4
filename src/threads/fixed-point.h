@@ -1,0 +1,12 @@
+#define F 16384
+#define INTF(N)  ((N)*F)
+#define FINTZ(X) ((X)/F)
+#define FINTN(X) (((X)>=0)?(((X)+F/2)/F):(((X)-F/2)/F))
+#define FADDF(X,Y) ((X)+(Y))
+#define FSUBF(X,Y) ((X)-(Y))
+#define FADDINT(X,N) ((X)+(N)*F)
+#define FSUBINT(X,N) ((X)-(N)*F)
+#define FMULF(X,Y) (((int64_t)X)*(Y)/F)
+#define FMULINT(X,Y) ((X)*(N))
+#define FDIVF(X,Y) ((int64_t)X)*F/(Y)
+#define FDIVINT(X,N) ((X)/(N))
