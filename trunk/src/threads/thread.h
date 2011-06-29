@@ -103,6 +103,8 @@ struct thread
 
     /* Modified for Project 1 */
     int64_t sleeping_ticks;             /* Record how long the thread has slept. */
+    int nice;
+    int recent_cpu;
   };
 
 /* If false (default), use round-robin scheduler.
@@ -140,5 +142,4 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
-
 #endif /* threads/thread.h */

@@ -1,12 +1,20 @@
-#define F 16384
-#define INTF(N)  ((N)*F)
-#define FINTZ(X) ((X)/F)
-#define FINTN(X) (((X)>=0)?(((X)+F/2)/F):(((X)-F/2)/F))
-#define FADDF(X,Y) ((X)+(Y))
-#define FSUBF(X,Y) ((X)-(Y))
-#define FADDINT(X,N) ((X)+(N)*F)
-#define FSUBINT(X,N) ((X)-(N)*F)
-#define FMULF(X,Y) (((int64_t)X)*(Y)/F)
-#define FMULINT(X,Y) ((X)*(N))
-#define FDIVF(X,Y) ((int64_t)X)*F/(Y)
-#define FDIVINT(X,N) ((X)/(N))
+#ifndef FIXED_POINT
+#define FIXED_POINT
+
+#define PARA 16384
+
+typedef int64_t fp;
+
+fp INT2FLOAT(int n);
+int FLOAT2INTZ(fp x);
+int FLOAT2INTN(fp x);
+fp FADDF(fp x,fp y);
+fp FSUBF(fp x,fp y);
+fp FADDI(fp x,int n);
+fp FSUBI(fp x,int n);
+fp FMULF(fp x,fp y);
+fp FMULI(fp x,int n);
+fp FDIVF(fp x,fp y);
+fp FDIVI(fp x,int n);
+
+#endif

@@ -11,9 +11,13 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "threads/fixed-point.h"
+#include "devices/timer.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
+
+
 
 /* Random value for struct thread's `magic' member.
    Used to detect stack overflow.  See the big comment at the top
@@ -74,9 +78,18 @@ static tid_t allocate_tid (void);
 /*my function--------c
 */
 static int getmaxpriority( void );
-void donothing();
+static void donothing( void );
 /*my function--------c
 */
+
+//Modified for Project 1
+static bool list_less(struct list_elem *a, struct list_elem *b, void *aux);
+static void thread_update_priority(struct thread *t);
+static void thread_update_load_avg(void);
+static void thread_update_recent_cpu(struct thread *t);
+static int count_ready_threads(void);
+
+int load_avg;
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -105,6 +118,9 @@ thread_init (void)
   init_thread (initial_thread, "main", PRI_DEFAULT);
   initial_thread->status = THREAD_RUNNING;
   initial_thread->tid = allocate_tid ();
+  initial_thread->nice = 0;
+  initial_thread->recent_cpu = 0;
+  load_avg = 0;
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -131,20 +147,53 @@ void
 thread_tick (void) 
 {
   struct thread *t = thread_current ();
-
+  int64_t total_ticks = timer_ticks();
+  struct list_elem *e;
   /* Update statistics. */
   if (t == idle_thread)
     idle_ticks++;
 #ifdef USERPROG
   else if (t->pagedir != NULL)
+  {
     user_ticks++;
+    if(thread_mlfqs)
+      thread_current()->recent_cpu = FADDINT(thread_current()->recent_cpu, 1);
+  }
 #endif
   else
+  {
     kernel_ticks++;
+    if(thread_mlfqs)
+      thread_current()->recent_cpu = FADDI(thread_current()->recent_cpu, 1);
+  }
+
+  if(thread_mlfqs)
+  {
+    if(total_ticks % 100 == 0){
+      thread_update_load_avg();
+      for(e = list_begin(&all_list); e!=list_end(&all_list); e=list_next(e))
+      {
+        t = list_entry(e, struct thread, allelem);
+        if(t!=idle_thread)
+          thread_update_recent_cpu(t);
+      }
+    }
+    if(total_ticks % TIME_SLICE == 0){
+      for(e = list_begin(&all_list); e!=list_end(&all_list); e=list_next(e))
+      {
+        t = list_entry(e, struct thread, allelem);
+        if(t!=idle_thread)
+          thread_update_priority(t);
+      }
+      list_sort(&ready_list, &list_less, NULL);
+      intr_yield_on_return ();
+    }
+  }
 
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
     intr_yield_on_return ();
+    
 }
 
 /* Prints thread statistics. */
@@ -285,7 +334,6 @@ thread_current (void)
      of stack, so a few big automatic arrays or moderate
      recursion can cause stack overflow. */
   ASSERT (is_thread (t));
-
   ASSERT (t->status == THREAD_RUNNING);
 
   return t;
@@ -358,6 +406,12 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
+  if(thread_mlfqs)
+    return;
+  
+  if(new_priority<PRI_MIN || new_priority>PRI_MAX)
+    return;
+
   thread_current ()->priority = new_priority;
 
 /*my code ---c
@@ -381,34 +435,39 @@ thread_get_priority (void)
 
 /* Sets the current thread's nice value to NICE. */
 void
-thread_set_nice (int nice UNUSED) 
+thread_set_nice (int new_nice) 
 {
-  /* Not yet implemented. */
+  if(thread_current()->nice < -20 || thread_current()->nice > 20){
+    return;
+  }
+  thread_current()->nice = new_nice;
+  thread_update_priority(thread_current());
+  if (getmaxpriority() > thread_current()->priority){
+    thread_yield();
+  }
 }
 
 /* Returns the current thread's nice value. */
 int
 thread_get_nice (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+  return thread_current()->nice;
 }
 
 /* Returns 100 times the system load average. */
 int
 thread_get_load_avg (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+  return FLOAT2INTN(FMULI(load_avg, 100));
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
 int
 thread_get_recent_cpu (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+  return FLOAT2INTN(FMULI(thread_current()->recent_cpu, 100));
 }
+
 
 /* Idle thread.  Executes when no other thread is ready to run.
 
@@ -419,6 +478,7 @@ thread_get_recent_cpu (void)
    blocks.  After that, the idle thread never appears in the
    ready list.  It is returned by next_thread_to_run() as a
    special case when the ready list is empty. */
+
 static void
 idle (void *idle_started_ UNUSED) 
 {
@@ -493,9 +553,16 @@ init_thread (struct thread *t, const char *name, int priority)
   t->status = THREAD_BLOCKED;
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
-  t->priority = priority;
+  if(!thread_mlfqs){
+    t->priority = priority;
+  }else{
+      t->nice = running_thread()->nice;
+      t->recent_cpu = running_thread()->recent_cpu;
+      thread_update_priority(t);
+  }
   t->magic = THREAD_MAGIC;
   list_push_back (&all_list, &t->allelem);
+
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
@@ -527,23 +594,23 @@ next_thread_to_run (void)
   else
   {
   	struct list_elem *e;
-	struct list_elem *cur_elem;
-	struct thread* cur_thread;
+	  struct list_elem *cur_elem;
+	  struct thread* cur_thread;
 
-        cur_elem = e = list_front (&ready_list);
-        cur_thread  = list_entry (e, struct thread, elem);
+    cur_elem = e = list_front (&ready_list);
+    cur_thread  = list_entry (e, struct thread, elem);
 
-        for ( e = list_next (e); e != list_end (&ready_list);
-           e = list_next (e))
-        {
-	   if( list_entry (e, struct thread, elem)->priority > cur_thread->priority )
-	   {
-		cur_elem = e;
-		cur_thread  = list_entry (e, struct thread, elem);
-	   }	
-        }
-	list_remove( cur_elem );
-        return cur_thread;
+    for ( e = list_next (e); e != list_end (&ready_list);
+      e = list_next (e))
+    {
+	    if( list_entry (e, struct thread, elem)->priority > cur_thread->priority )
+	    {
+		    cur_elem = e;
+		    cur_thread  = list_entry (e, struct thread, elem);
+	    }	
+    }
+	    list_remove( cur_elem );
+      return cur_thread;
   }
 /*my code ---c*/
 }
@@ -643,25 +710,25 @@ getmaxpriority( void )
   else
   {
   	struct list_elem *e;
-	struct thread* cur_thread;
+	  struct thread* cur_thread;
 
-        e = list_begin (&ready_list);
-        cur_thread  = list_entry (e, struct thread, elem);
+    e = list_begin (&ready_list);
+    cur_thread  = list_entry (e, struct thread, elem);
 
-        for ( e = list_begin (&ready_list); e != list_end (&ready_list);
-           e = list_next (e))
-        {
-	   if( list_entry (e, struct thread, elem)->priority > cur_thread->priority )
-	   {
-		cur_thread  = list_entry (e, struct thread, elem);
-	   }	
-        }
-        return cur_thread->priority;
+    for ( e = list_begin (&ready_list); e != list_end (&ready_list);
+      e = list_next (e))
+    {
+	    if( list_entry (e, struct thread, elem)->priority > cur_thread->priority )
+	    {
+		    cur_thread  = list_entry (e, struct thread, elem);
+	    }	
+    }
+    return cur_thread->priority;
   }
 /*my code ---c*/
 }
 
-void donothing()
+static void donothing()
 {
 printf( "OK %d", list_size( &ready_list ) );
 }
@@ -669,3 +736,39 @@ printf( "OK %d", list_size( &ready_list ) );
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
+
+static bool
+list_less(struct list_elem *a, struct list_elem *b, void *aux){
+  struct thread *t1, *t2;
+  t1 = list_entry(a, struct thread, elem);
+  t2 = list_entry(b, struct thread, elem);
+  return (t1->priority) > (t2->priority);
+}
+
+static void
+thread_update_priority(struct thread *t){
+  int new_pri = PRI_MAX - FLOAT2INTN(FDIVI(t->recent_cpu, 4))-(t->nice*2);
+  if(new_pri < PRI_MIN){
+    t->priority = PRI_MIN;
+  }else if(new_pri > PRI_MAX){
+    t->priority = PRI_MAX;
+  }else{
+    t->priority = new_pri;
+  }
+}
+
+static void
+thread_update_load_avg(void){
+  load_avg = FADDF(FMULF(FDIVI(INT2FLOAT(59), 60), load_avg), FMULI(FDIVI(INT2FLOAT(1), 60), count_ready_threads()));
+}
+
+static void
+thread_update_recent_cpu(struct thread *t){
+  t->recent_cpu = FADDI(FMULF(FDIVF(FMULI(load_avg, 2), FADDI(FMULI(load_avg, 2), 1)), t->recent_cpu), t->nice);
+}
+
+static int
+count_ready_threads(void){
+  int count = list_size(&ready_list);
+  return (thread_current()==idle_thread)?count:count+1;
+}
