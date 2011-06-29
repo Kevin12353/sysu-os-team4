@@ -99,11 +99,14 @@ timer_sleep (int64_t ticks)
   /* Modified for Project 1 */
   /*while (timer_elapsed (start) < ticks) 
     thread_yield ();*/
-  struct thread *cur = thread_current ();
-  cur->sleeping_ticks = ticks-1;
-  enum intr_level old_intr_level = intr_disable ();
-  thread_block ();
-  intr_set_level (old_intr_level);
+  
+  if(ticks>0){
+    struct thread *cur = thread_current ();
+    cur->sleeping_ticks = ticks;
+    enum intr_level old_intr_level = intr_disable ();
+    thread_block ();
+    intr_set_level (old_intr_level);
+  }
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
@@ -183,7 +186,9 @@ timer_interrupt (struct intr_frame *args UNUSED)
   ticks++;
   thread_tick ();
   /* Modified for Project 1 */
+  enum intr_level old_intr_level = intr_disable();
   thread_foreach(wake_threads, 0);
+  intr_set_level (old_intr_level);
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer
@@ -260,15 +265,12 @@ real_time_delay (int64_t num, int32_t denom)
 static void
 wake_threads (struct thread *t, void *aux)
 {
-  if(t->status == THREAD_BLOCKED)
+  if(t->status == THREAD_BLOCKED && t->sleeping_ticks>0)
   {
-    if(t->sleeping_ticks <= 0)
+    t->sleeping_ticks--;
+    if(t->sleeping_ticks == 0)
     {
       thread_unblock (t);
-    }
-    else if(t->sleeping_ticks > 0)
-    {
-      --(t->sleeping_ticks);
     }
   }
 }

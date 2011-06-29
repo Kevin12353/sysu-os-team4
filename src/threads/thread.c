@@ -223,7 +223,7 @@ thread_block (void)
 {
   ASSERT (!intr_context ());
   ASSERT (intr_get_level () == INTR_OFF);
-
+ // printf("block current tid = %d\n", thread_current()->tid);
   thread_current ()->status = THREAD_BLOCKED;
   schedule ();
 }
@@ -242,7 +242,7 @@ thread_unblock (struct thread *t)
   enum intr_level old_level;
 
   ASSERT (is_thread (t));
-
+//  printf("unblock current tid = %d\n",t->tid);
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
   list_push_back (&ready_list, &t->elem);
