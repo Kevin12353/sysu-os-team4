@@ -71,6 +71,13 @@ static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 
+/*my function--------c
+*/
+static int getmaxpriority( void );
+void donothing();
+/*my function--------c
+*/
+
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
    general and it is possible in this case only because loader.S
@@ -115,6 +122,7 @@ thread_start (void)
 
   /* Wait for the idle thread to initialize idle_thread. */
   sema_down (&idle_started);
+
 }
 
 /* Called by the timer interrupt handler at each timer tick.
@@ -209,6 +217,13 @@ thread_create (const char *name, int priority,
   /* Add to run queue. */
   thread_unblock (t);
 
+  struct thread* cur = running_thread ();
+
+  if (cur->priority < t->priority )
+  {
+	thread_yield();
+  }
+
   return tid;
 }
 
@@ -219,11 +234,11 @@ thread_create (const char *name, int priority,
    is usually a better idea to use one of the synchronization
    primitives in synch.h. */
 void
-thread_block (void) 
+thread_block (void)
 {
   ASSERT (!intr_context ());
   ASSERT (intr_get_level () == INTR_OFF);
- // printf("block current tid = %d\n", thread_current()->tid);
+
   thread_current ()->status = THREAD_BLOCKED;
   schedule ();
 }
@@ -242,7 +257,7 @@ thread_unblock (struct thread *t)
   enum intr_level old_level;
 
   ASSERT (is_thread (t));
-//  printf("unblock current tid = %d\n",t->tid);
+
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
   list_push_back (&ready_list, &t->elem);
@@ -263,14 +278,14 @@ thread_name (void)
 struct thread *
 thread_current (void) 
 {
-  struct thread *t = running_thread ();
-  
+  struct thread *t = running_thread ();
   /* Make sure T is really a thread.
      If either of these assertions fire, then your thread may
      have overflowed its stack.  Each thread has less than 4 kB
      of stack, so a few big automatic arrays or moderate
      recursion can cause stack overflow. */
   ASSERT (is_thread (t));
+
   ASSERT (t->status == THREAD_RUNNING);
 
   return t;
@@ -286,7 +301,7 @@ thread_tid (void)
 /* Deschedules the current thread and destroys it.  Never
    returns to the caller. */
 void
-thread_exit (void) 
+thread_exit (void) 	 
 {
   ASSERT (!intr_context ());
 
@@ -332,7 +347,7 @@ thread_foreach (thread_action_func *func, void *aux)
   ASSERT (intr_get_level () == INTR_OFF);
 
   for (e = list_begin (&all_list); e != list_end (&all_list);
-       e = list_next (e))
+       e = list_next( e ) )
     {
       struct thread *t = list_entry (e, struct thread, allelem);
       func (t, aux);
@@ -344,6 +359,17 @@ void
 thread_set_priority (int new_priority) 
 {
   thread_current ()->priority = new_priority;
+
+/*my code ---c
+  if the current thread priority is not the highest, turn to next thread
+*/
+  int highest_priority = getmaxpriority();
+
+  if( highest_priority > new_priority )
+  {
+	thread_yield();
+  }
+/*my code ---c*/
 }
 
 /* Returns the current thread's priority. */
@@ -495,8 +521,31 @@ next_thread_to_run (void)
 {
   if (list_empty (&ready_list))
     return idle_thread;
+/*my code ---c
+  select the next highest priority thread
+*/
   else
-    return list_entry (list_pop_front (&ready_list), struct thread, elem);
+  {
+  	struct list_elem *e;
+	struct list_elem *cur_elem;
+	struct thread* cur_thread;
+
+        cur_elem = e = list_front (&ready_list);
+        cur_thread  = list_entry (e, struct thread, elem);
+
+        for ( e = list_next (e); e != list_end (&ready_list);
+           e = list_next (e))
+        {
+	   if( list_entry (e, struct thread, elem)->priority > cur_thread->priority )
+	   {
+		cur_elem = e;
+		cur_thread  = list_entry (e, struct thread, elem);
+	   }	
+        }
+	list_remove( cur_elem );
+        return cur_thread;
+  }
+/*my code ---c*/
 }
 
 /* Completes a thread switch by activating the new thread's page
@@ -561,6 +610,7 @@ schedule (void)
 
   ASSERT (intr_get_level () == INTR_OFF);
   ASSERT (cur->status != THREAD_RUNNING);
+
   ASSERT (is_thread (next));
 
   if (cur != next)
@@ -580,6 +630,40 @@ allocate_tid (void)
   lock_release (&tid_lock);
 
   return tid;
+}
+
+/*my code ---c
+  get the highest priority
+*/
+int
+getmaxpriority( void )
+{
+  if (list_empty (&ready_list))
+    return PRI_DEFAULT;
+  else
+  {
+  	struct list_elem *e;
+	struct thread* cur_thread;
+
+        e = list_begin (&ready_list);
+        cur_thread  = list_entry (e, struct thread, elem);
+
+        for ( e = list_begin (&ready_list); e != list_end (&ready_list);
+           e = list_next (e))
+        {
+	   if( list_entry (e, struct thread, elem)->priority > cur_thread->priority )
+	   {
+		cur_thread  = list_entry (e, struct thread, elem);
+	   }	
+        }
+        return cur_thread->priority;
+  }
+/*my code ---c*/
+}
+
+void donothing()
+{
+printf( "OK %d", list_size( &ready_list ) );
 }
 
 /* Offset of `stack' member within `struct thread'.
