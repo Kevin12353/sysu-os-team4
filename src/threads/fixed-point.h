@@ -3,18 +3,17 @@
 
 #define PARA 16384
 
-typedef int64_t fp;
+int64_t INT2FLOAT(int n);  //convert int to float
+int FLOAT2INTZ(int64_t x);  //convert float to int, throwing
+int FLOAT2INTN(int64_t x);  //convert float to int, rounding
+int64_t FADDF(int64_t x,int64_t y);  //float plus float
+int64_t FSUBF(int64_t x,int64_t y);  //float sub float
+int64_t FADDI(int64_t x,int n);  //float plus int
+int64_t FSUBI(int64_t x,int n);  //float sub int
+int64_t FMULF(int64_t x,int64_t y);  //float mul float
+int64_t FMULI(int64_t x,int n);  //float mul int
+int64_t FDIVF(int64_t x,int64_t y);  //float div float
+int64_t FDIVI(int64_t x,int n);  //float div int
 
-fp INT2FLOAT(int n);
-int FLOAT2INTZ(fp x);
-int FLOAT2INTN(fp x);
-fp FADDF(fp x,fp y);
-fp FSUBF(fp x,fp y);
-fp FADDI(fp x,int n);
-fp FSUBI(fp x,int n);
-fp FMULF(fp x,fp y);
-fp FMULI(fp x,int n);
-fp FDIVF(fp x,fp y);
-fp FDIVI(fp x,int n);
 
 #endif

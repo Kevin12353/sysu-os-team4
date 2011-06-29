@@ -101,10 +101,10 @@ struct thread
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
 
-    /* Modified for Project 1 */
+    /* ousiri */
     int64_t sleeping_ticks;             /* Record how long the thread has slept. */
-    int nice;
-    int recent_cpu;
+    int nice;							/* Record the niceness of the thread */
+    int recent_cpu;						/* Record the recent cpu of the thread */
   };
 
 /* If false (default), use round-robin scheduler.
