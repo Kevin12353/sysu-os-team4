@@ -411,8 +411,20 @@ thread_set_priority (int new_priority)
   if(new_priority<PRI_MIN || new_priority>PRI_MAX)
     return;
 
-  thread_current ()->priority = new_priority;
+  thread_current ()->source_priority = new_priority;
 
+  //if we use priority scheduling to set real priority
+  if( !thread_mlfqs ){
+  int priority = get_thread_donate_priority( thread_current() );
+  if(  priority < new_priority )
+  {
+	thread_current()->priority = new_priority;
+  }
+  }
+  //otherwise, we have only current priority
+  else{
+  thread_current()->priority = new_priority;
+  }
 /*my code ---c
   if the current thread priority is not the highest, turn to next thread
 */
@@ -601,6 +613,7 @@ next_thread_to_run (void)
     cur_elem = e = list_front (&ready_list);
     cur_thread  = list_entry (e, struct thread, elem);
 
+    //get the max priority next thread
     for ( e = list_next (e); e != list_end (&ready_list);
       e = list_next (e))
     {
@@ -731,69 +744,53 @@ getmaxpriority( void )
 /* denate priority */
 void denate_priority( struct lock *lc )
 {
-  enum intr_level old_level;
+  enum intr_level  old_level;
+  struct thread* t;
+  int priority;
+
+  if( lc->holder == NULL )
+	return;
 
   old_level = intr_disable ();
-  if( lc->holder != NULL )
+  thread_current()->apply_lock = lc;
+  t = thread_current();
+  priority = t->priority;
+  while( t->apply_lock != NULL && t->apply_lock->holder->priority < priority )
   {
-	thread_current ()->apply_lock = lc;
-  	ruc_denate_priority( lc->holder->apply_lock->holder, lc->holder->priority );
+	t->apply_lock->holder->priority = priority;
+	t = t->apply_lock->holder;
   }
 
   intr_set_level (old_level);
 }
 
-/* recursion denate priority */
-void ruc_denate_priority( struct thread *t, int priority )
+//get the donating thread's highest priority
+int get_thread_donate_priority( struct thread* t )
 {
-	if( t->priority <= priority )
-	{
-		t->priority = priority;
-	}
-	else
-	{
-		return;
-	}
-	if( t->apply_lock != NULL )
-	{
-		ruc_denate_priority( t->apply_lock->holder, t->priority );
-	}
-	/*else
-	{
-		if( t->priority > priority )
-			thread_yield();
-	}*/
-}
-
-int get_thread_denote_priority( struct thread* t )
-{
-	if( list_size( &t->own_list ) == 0 )
-	{
-		return 0;
-	}
-
-	struct list_elem *le;
-	struct list_elem *e;
-	struct lock* cur_lock;
 	int priority = PRI_MIN - 1;
+	if( !list_empty( &t->own_list ) )
+	{
+		struct list_elem *le;
+		struct list_elem *e;
+		struct lock* cur_lock;
 
-        for ( le = list_front (&t->own_list); le != list_end (&t->own_list);
-           le = list_next (le))
-        {
-	    	cur_lock = list_entry (le, struct lock, elem);
-		if( list_empty( &cur_lock->semaphore.waiters ) )
+		for ( le = list_front (&t->own_list); le != list_end (&t->own_list);
+		   le = list_next (le))
 		{
-			continue;
+		    	cur_lock = list_entry (le, struct lock, elem);
+			if( !list_empty( &cur_lock->semaphore.waiters ) )
+			{
+				for ( e = list_front ( &cur_lock->semaphore.waiters );
+		 			e != list_end ( &cur_lock->semaphore.waiters ); e = list_next (e))
+				{
+					if( priority < list_entry (e, struct thread, elem)->priority )
+					{
+				   		priority = list_entry (e, struct thread, elem)->priority;
+			   		}
+				}
+			}
 		}
-		for ( e = list_front ( &cur_lock->semaphore.waiters );
- 			e != list_end ( &cur_lock->semaphore.waiters ); e = list_next (e))
-        	{
-			if( priority < list_entry (e, struct thread, elem)->priority )
-	        	{
-		   		priority = list_entry (e, struct thread, elem)->priority;
-	   		}
-        	}
-        }
+	}
 
 	return priority;
 }
