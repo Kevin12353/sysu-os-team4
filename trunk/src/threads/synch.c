@@ -116,7 +116,7 @@ sema_up (struct semaphore *sema)
 /*my code---c*/
     	struct list_elem *e;
 	struct list_elem *cur_elem;
-	struct thread* cur_thread;
+	struct thread* cur_thread = NULL;
 	
 	if( !list_empty( &sema->waiters ) )
 	{
@@ -141,7 +141,9 @@ sema_up (struct semaphore *sema)
 
   sema->value++;
   intr_set_level (old_level);
-  thread_yield();
+  if (cur_thread!=NULL && cur_thread->priority > thread_current()->priority){
+    thread_yield();
+  }
 }
 
 static void sema_test_helper (void *sema_);
