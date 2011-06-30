@@ -77,7 +77,6 @@ static tid_t allocate_tid (void);
 
 /*my function--------c
 */
-static int getmaxpriority( void );
 static void donothing( void );
 /*my function--------c
 */
@@ -560,9 +559,11 @@ init_thread (struct thread *t, const char *name, int priority)
       t->recent_cpu = running_thread()->recent_cpu;
       thread_update_priority(t);
   }
+  t->source_priority = t->priority = priority;
   t->magic = THREAD_MAGIC;
+  t->apply_lock = NULL;
+  list_init (&t->own_list);
   list_push_back (&all_list, &t->allelem);
-
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
@@ -725,9 +726,79 @@ getmaxpriority( void )
     }
     return cur_thread->priority;
   }
-/*my code ---c*/
 }
 
+/* denate priority */
+void denate_priority( struct lock *lc )
+{
+  enum intr_level old_level;
+
+  old_level = intr_disable ();
+  if( lc->holder != NULL )
+  {
+	thread_current ()->apply_lock = lc;
+  	ruc_denate_priority( lc->holder->apply_lock->holder, lc->holder->priority );
+  }
+
+  intr_set_level (old_level);
+}
+
+/* recursion denate priority */
+void ruc_denate_priority( struct thread *t, int priority )
+{
+	if( t->priority <= priority )
+	{
+		t->priority = priority;
+	}
+	else
+	{
+		return;
+	}
+	if( t->apply_lock != NULL )
+	{
+		ruc_denate_priority( t->apply_lock->holder, t->priority );
+	}
+	/*else
+	{
+		if( t->priority > priority )
+			thread_yield();
+	}*/
+}
+
+int get_thread_denote_priority( struct thread* t )
+{
+	if( list_size( &t->own_list ) == 0 )
+	{
+		return 0;
+	}
+
+	struct list_elem *le;
+	struct list_elem *e;
+	struct lock* cur_lock;
+	int priority = PRI_MIN - 1;
+
+        for ( le = list_front (&t->own_list); le != list_end (&t->own_list);
+           le = list_next (le))
+        {
+	    	cur_lock = list_entry (le, struct lock, elem);
+		if( list_empty( &cur_lock->semaphore.waiters ) )
+		{
+			continue;
+		}
+		for ( e = list_front ( &cur_lock->semaphore.waiters );
+ 			e != list_end ( &cur_lock->semaphore.waiters ); e = list_next (e))
+        	{
+			if( priority < list_entry (e, struct thread, elem)->priority )
+	        	{
+		   		priority = list_entry (e, struct thread, elem)->priority;
+	   		}
+        	}
+        }
+
+	return priority;
+}
+
+/*my function ---c*/
 static void donothing()
 {
 printf( "OK %d", list_size( &ready_list ) );
