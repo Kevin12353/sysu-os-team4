@@ -156,7 +156,7 @@ thread_tick (void)
   {
     user_ticks++;
     if(thread_mlfqs)
-      thread_current()->recent_cpu = FADDINT(thread_current()->recent_cpu, 1);
+      thread_current()->recent_cpu = FADDI(thread_current()->recent_cpu, 1);
   }
 #endif
   else
