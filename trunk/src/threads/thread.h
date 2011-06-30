@@ -150,8 +150,7 @@ int thread_get_load_avg (void);
 */
 int getmaxpriority( void );		/* get the highest priority thread in ready queue */
 void denate_priority( struct lock *t );	/* denate priority */
-void ruc_denate_priority( struct thread *t, int priority );	/* recursion denate priority */
-int get_thread_denote_priority( struct thread* t ); /* get the highest denote priority */
+int get_thread_donate_priority( struct thread* t ); /* get the highest donate priority */
 /*myfunction----c */
 
 #endif /* threads/thread.h */
