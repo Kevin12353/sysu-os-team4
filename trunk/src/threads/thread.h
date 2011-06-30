@@ -103,6 +103,9 @@ struct thread
 
     /* ousiri */
     int64_t sleeping_ticks;             /* Record how long the thread has slept. */
+    int source_priority;		/* The priority the thread hava */
+    struct lock* apply_lock;		/* THe lock the thread is waiting */
+    struct list own_list;		/* The lock the thread is having */
     int nice;							/* Record the niceness of the thread */
     int recent_cpu;						/* Record the recent cpu of the thread */
   };
@@ -142,4 +145,13 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
+
+/*myfunction ---c
+*/
+int getmaxpriority( void );		/* get the highest priority thread in ready queue */
+void denate_priority( struct lock *t );	/* denate priority */
+void ruc_denate_priority( struct thread *t, int priority );	/* recursion denate priority */
+int get_thread_denote_priority( struct thread* t ); /* get the highest denote priority */
+/*myfunction----c */
+
 #endif /* threads/thread.h */
