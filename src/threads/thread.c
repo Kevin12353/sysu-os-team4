@@ -576,6 +576,11 @@ init_thread (struct thread *t, const char *name, int priority)
   t->apply_lock = NULL;
   list_init (&t->own_list);
   list_push_back (&all_list, &t->allelem);
+#ifdef USERPROG
+  sema_init (&t->sema, 0);		/* initial semaphore */
+  t->ret_status = 0;			/* initial return status*/
+  list_init (&t->opened_file);
+#endif
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
@@ -799,6 +804,24 @@ int get_thread_donate_priority( struct thread* t )
 static void donothing()
 {
 printf( "OK %d", list_size( &ready_list ) );
+}
+
+struct thread * get_thread_by_tid (tid_t tid)
+{
+  struct list_elem *f;
+  struct thread *ret;
+  
+  ret = NULL;
+  for (f = list_begin (&all_list); f != list_end (&all_list); f = list_next (f))
+    {
+      ret = list_entry (f, struct thread, allelem);
+      ASSERT (is_thread (ret));
+      if (ret->tid == tid){
+        return ret;
+      }
+    }
+    
+  return NULL;
 }
 
 /* Offset of `stack' member within `struct thread'.

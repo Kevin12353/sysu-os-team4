@@ -18,6 +18,11 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 
+/* My .h file---c */
+#include "threads/malloc.h"
+#include "userprog/syscall.h"
+/* == My .h file ---c */
+
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 
@@ -30,6 +35,8 @@ process_execute (const char *file_name)
 {
   char *fn_copy;
   tid_t tid;
+  char *fn, *save_ptr;
+  struct thread *t;
 
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
@@ -38,10 +45,22 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
+  fn = (char*)malloc(strlen(file_name)+1);
+  memcpy(fn, file_name, strlen(file_name)+1);
+  fn = strtok_r(fn, " ", &save_ptr);
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+  tid = thread_create (fn, PRI_DEFAULT, start_process, fn_copy);
+  
+  t = get_thread_by_tid (tid);
+  t->parent = thread_current();
+  sema_down (&t->sema);
+  
+  if (t->ret_status == -1)
+    tid = TID_ERROR;
+    
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
+  free(fn);
   return tid;
 }
 
@@ -53,18 +72,79 @@ start_process (void *file_name_)
   char *file_name = file_name_;
   struct intr_frame if_;
   bool success;
+  char *token, *save_ptr;
+  int arg_off[32]; //can store 31 args
+  arg_off[0] = 0;
+  int argc;
+  int i;
+  int file_name_len = strlen(file_name)+1;
+  char * arg_start;
+  struct thread *t;
+  struct file* file;
 
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
-  success = load (file_name, &if_.eip, &if_.esp);
 
+  for(argc = 1, token=strtok_r(file_name, " ", &save_ptr);
+      token!=NULL;
+      token=strtok_r(NULL, " ", &save_ptr), ++argc){
+    while((*save_ptr)==' '){
+      ++save_ptr;
+    }
+    arg_off[argc] = save_ptr-file_name;
+  }
+  argc--;
+  success = load (file_name, &if_.eip, &if_.esp);
   /* If load failed, quit. */
-  palloc_free_page (file_name);
-  if (!success) 
-    thread_exit ();
+  if (success){
+    if_.esp -= file_name_len;
+    arg_start = if_.esp;
+    memcpy((char*)if_.esp, file_name, file_name_len); //argv[x][...]
+    if_.esp -= 1;
+    *(uint8_t*)if_.esp = 0; //word-align
+    if_.esp -= 4;
+    *(char**)if_.esp = NULL; //argv[argc]
+    for(i=argc-1; i>=0; --i){
+      if_.esp -= 4;
+      *(char**)if_.esp = arg_start+arg_off[i]; //argv[x]
+//      printf("argv[%d]=%s\n", i, *(char**)(if_.esp));  //for debug
+    }
+    if_.esp -= 4;
+    *(char***)(if_.esp) = (if_.esp+4); //argv
+    if_.esp -= 4;
+    *(int*)if_.esp = argc; //argc
+    if_.esp -= 4;
+    *(int*)(if_.esp) = 0; //fake address
+    
+	  t = thread_current();
+    file = filesys_open(file_name);
+    struct opened_file_list_elem* ofle = (struct opened_file_list_elem*)malloc(sizeof(struct opened_file_list_elem));
+    ofle->file = file;
+    file_deny_write(file);
+    list_push_back(&t->opened_file, &ofle->elem);
+    
+    sema_up (&t->sema);
+    if( t->parent->status == THREAD_BLOCKED )
+    {
+    	thread_unblock( t->parent );
+    }
+    intr_disable ();
+    thread_block ();
+    intr_enable ();
+  }else{
+      t = thread_current();
+      t->ret_status = -1;
+      sema_up (&t->sema);
+      intr_disable ();
+      thread_block ();
+      intr_enable ();
+      thread_exit ();
+  }
+
+    palloc_free_page (file_name);
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -88,7 +168,30 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  return -1;
+  struct thread *t;
+  int ret;
+  
+  t = get_thread_by_tid (child_tid);
+
+  if (!t || t->status == THREAD_DYING || t->parent != thread_current() )
+    return -1;
+  if (t->ret_status != 0)
+    return t->ret_status;
+  if( t->status == THREAD_BLOCKED )
+  {
+  	thread_unblock( t );
+  }
+  sema_down( &t->sema );
+  
+  ret = t->ret_status;
+  
+  if( t->status == THREAD_BLOCKED )
+  {
+  	thread_unblock( t );
+  }
+  sema_down( &t->sema );
+
+  return ret;
 }
 
 /* Free the current process's resources. */
@@ -97,11 +200,38 @@ process_exit (void)
 {
   struct thread *cur = thread_current ();
   uint32_t *pd;
+  struct list_elem* l_elem;
+  struct opened_file_list_elem* ofle;
 
+  sema_up (&cur->sema);
+  if(cur->parent->status == THREAD_BLOCKED )
+  {
+    thread_unblock( cur->parent );
+  }
+  intr_disable ();
+  thread_block ();
+  intr_enable ();
+  
+
+  if(!list_empty(&cur->opened_file))
+  {
+    for(l_elem=list_front(&(cur->opened_file)); 
+        l_elem!=list_end(&(cur->opened_file));
+        l_elem=list_next(l_elem))
+    {
+      ofle = list_entry(l_elem, struct opened_file_list_elem, elem);
+      file_allow_write(ofle->file);
+      file_close(ofle->file);
+    }
+  }
+
+
+  sema_up( &cur->sema );
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
+  printf("%s: exit(%d)\n", cur->name, cur->ret_status);
   pd = cur->pagedir;
-  if (pd != NULL) 
+  if (pd != NULL)
     {
       /* Correct ordering here is crucial.  We must set
          cur->pagedir to NULL before switching page directories,
