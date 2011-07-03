@@ -5,6 +5,11 @@
 #include <list.h>
 #include <stdint.h>
 
+/*my .h file ---c*/
+#include "threads/synch.h"
+#include "filesys/file.h"
+/*my .h file ---c*/
+
 /* States in a thread's life cycle. */
 enum thread_status
   {
@@ -13,6 +18,11 @@ enum thread_status
     THREAD_BLOCKED,     /* Waiting for an event to trigger. */
     THREAD_DYING        /* About to be destroyed. */
   };
+
+struct opened_file_list_elem{
+  struct file* file;
+  struct list_elem elem;
+};
 
 /* Thread identifier type.
    You can redefine this to whatever type you like. */
@@ -96,6 +106,10 @@ struct thread
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
+    struct semaphore sema;						/* the semaphore used to block the main thread*/
+    int ret_status;						/* the return status of the thread*/
+    struct thread* parent;				/*the parent thread*/
+    struct list opened_file;    //ousiri
 #endif
 
     /* Owned by thread.c. */
@@ -152,5 +166,10 @@ int getmaxpriority( void );		/* get the highest priority thread in ready queue *
 void denate_priority( struct lock *t );	/* denate priority */
 int get_thread_donate_priority( struct thread* t ); /* get the highest donate priority */
 /*myfunction----c */
+
+/*my function ---c
+ */
+struct thread * get_thread_by_tid (tid_t tid); /*the funtion the thread point by its tid*/
+/*my function----c*/
 
 #endif /* threads/thread.h */

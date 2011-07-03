@@ -74,7 +74,6 @@ inode_create (block_sector_t sector, off_t length)
 {
   struct inode_disk *disk_inode = NULL;
   bool success = false;
-
   ASSERT (length >= 0);
 
   /* If this assertion fails, the inode structure is not exactly
